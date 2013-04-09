@@ -26,8 +26,8 @@ class Corpus {
 
     size_t Tokens() const {
         size_t N = 0;
-        for(const_iterator it = segments.begin(); it != segments.end(); ++it) {
-            N += (*it).size();
+        for(auto& doc: segments) {
+            N += doc.size();
         }
         return N;
     }
