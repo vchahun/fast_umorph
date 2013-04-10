@@ -6,7 +6,7 @@
 #include "banana.h"
 #include "pss_model.h"
 
-const std::string FormatSegmentation(const Segmentation<fst::StdArc>& seg,
+const std::string FormatSegmentation(const Segmentation& seg,
         const Vocabulary& substring_vocabulary) {
     std::string res;
     for(unsigned p: seg.prefixes)
@@ -54,13 +54,13 @@ int main(int argc, char** argv) {
 
     const unsigned n_iterations = atoi(argv[1]);
 
-    std::vector<Segmentation<fst::LogArc>> segs;
+    std::vector<Segmentation> segs;
     for(unsigned it = 0; it < n_iterations; it++) {
         unsigned wid = 0;
         for(auto& sentence: corpus) {
             for(auto& word: sentence) {
                 if(it > 0) model.Decrement(word, segs[wid]);
-                const Segmentation<fst::LogArc> seg = model.Increment(word, engine, (it==0));
+                const Segmentation seg = model.Increment(word, engine, (it==0));
                 if(it > 0) segs[wid] = seg;
                 else segs.push_back(seg);
                 wid++;
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
 
     for(unsigned w = 0; w < word_vocabulary.Size(); w++) {
         const std::string& word = word_vocabulary.Convert(w);
-        const Segmentation<fst::StdArc> seg = model.Decode(w);
+        const Segmentation seg = model.Decode(w);
         std::cout << word << "\t" << FormatSegmentation(seg, substring_vocabulary) << "\n";
     }
 }
