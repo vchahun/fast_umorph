@@ -1,10 +1,12 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <cassert>
 
 class Vocabulary {
     std::unordered_map<std::string, unsigned> word2id;
     std::vector<std::string> id2word;
+    typedef std::vector<std::string>::const_iterator const_iterator;
 
     public:
     Vocabulary() : word2id(), id2word() {}
@@ -29,6 +31,14 @@ class Vocabulary {
 
     size_t Size() const {
         return id2word.size();
+    }
+
+    const_iterator begin() const {
+        return id2word.begin(); 
+    }
+
+    const_iterator end() const {
+        return id2word.end(); 
     }
 
 };

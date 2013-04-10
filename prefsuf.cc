@@ -111,19 +111,17 @@ int main(int argc, char** argv) {
 
     const unsigned n_iterations = atoi(argv[1]);
 
-    std::vector< std::vector<unsigned> > splits(corpus.Size());
+    std::vector<unsigned> splits;
     for(unsigned it = 0; it < n_iterations; it++) {
-        unsigned sid = 0;
+        unsigned wid = 0;
         for(auto& segment: corpus) {
-            std::vector<unsigned>& segment_splits = splits[sid];
-            segment_splits.resize(segment.size());
-            unsigned wid = 0;
             for(auto& word: segment) {
-                if(it > 0) model.Decrement(word, segment_splits[wid]);
-                segment_splits[wid] = model.Increment(word, engine, (it==0));
+                if(it > 0) model.Decrement(word, splits[wid]);
+                unsigned split = model.Increment(word, engine, (it==0));
+                if(it > 0) splits[wid] = split;
+                else splits.push_back(split);
                 wid++;
             }
-            sid++;
         }
         if(it % 10 == 9) {
             std::cerr << "Iteration " << (it+1) << "/" << n_iterations << "\n";

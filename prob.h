@@ -9,19 +9,19 @@ class DirichletMultinomial {
         : K(size), count(size), alpha(concentration) {}
 
     void Increment(unsigned k) {
-        assert(0 <= k && k < K);
+        assert(k < K);
         count[k]++;
         N++;
     }
 
     void Decrement(unsigned k) {
-        assert(0 <= k && k < K);
+        assert(k < K);
         count[k]--;
         N--;
     }
 
     float Prob(unsigned k) const {
-        assert(0 <= k && k < K);
+        assert(k < K);
         return (alpha + count[k])/(K * alpha + N);
     }
 
@@ -37,6 +37,36 @@ class DirichletMultinomial {
     float alpha;
     unsigned N;
     std::vector<unsigned> count;
+};
+
+struct BetaGeometric {
+    unsigned L, N;
+    float alpha, beta;
+
+    BetaGeometric(float alpha, float beta) : L(0), N(0), alpha(alpha), beta(beta) {}
+
+    void Increment(unsigned l) {
+        L += l;
+        N += 1;
+    }
+
+    void Decrement(unsigned l ){
+        L -= l;
+        N += 1;
+    }
+
+    float Stop() const {
+        return (alpha + N)/(alpha + beta + N + L);
+    }
+
+    float Prob(unsigned l) const {
+        float p = Stop();
+        return p * pow(1 - p, l);
+    }
+
+    double LogLikelihood() const {
+        return -1;
+    }
 };
 
 
