@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
     std::cerr << "Found " << substring_vocabulary.Size() << " substrings\n";
 
     SegmentationModel model(alpha_prefix, alpha_stem, alpha_suffix,
-           word_vocabulary, substring_vocabulary, tries);
+           word_vocabulary, substring_vocabulary.Size(), tries);
 
     std::random_device rd;
     std::mt19937 engine(rd());
@@ -68,6 +68,7 @@ int main(int argc, char** argv) {
             }
         }
         std::cerr << "\n";
+        std::cerr << model << "\n";
         if(it % 10 == 9) {
             std::cerr << "Iteration " << (it+1) << "/" << n_iterations << "\n";
             double ll = model.LogLikelihood();

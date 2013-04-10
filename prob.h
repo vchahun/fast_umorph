@@ -3,8 +3,7 @@
 #include <random>
 #include <cmath>
 
-class DirichletMultinomial {
-    public:
+struct DirichletMultinomial {
     DirichletMultinomial(unsigned size, float concentration)
         : K(size), count(size), alpha(concentration) {}
 
@@ -32,12 +31,22 @@ class DirichletMultinomial {
         return ll;
     }
 
-    private:
     unsigned K;
     float alpha;
     unsigned N;
     std::vector<unsigned> count;
+
+    friend std::ostream& operator<<(std::ostream&, const DirichletMultinomial&);
 };
+
+
+std::ostream& operator<<(std::ostream& os, const DirichletMultinomial& m) {
+    unsigned support = 0;
+    for(unsigned k = 0; k < m.K; k++)
+        support += (m.count[k] > 0);
+    return os << "Multinomial(N=" << m.N << " |support|=" << support << ")"
+        << " ~ Dir(K=" << m.K << ", alpha=" << m.alpha << ")";
+}
 
 struct BetaGeometric {
     unsigned L, N;
@@ -47,12 +56,12 @@ struct BetaGeometric {
 
     void Increment(unsigned l) {
         L += l;
-        N += 1;
+        N++;
     }
 
     void Decrement(unsigned l ){
         L -= l;
-        N += 1;
+        N--;
     }
 
     float Stop() const {
@@ -61,13 +70,21 @@ struct BetaGeometric {
 
     float Prob(unsigned l) const {
         float p = Stop();
-        return p * pow(1 - p, l);
+        return p * pow(1 - p, l); // mean = 1/p - 1
     }
 
     double LogLikelihood() const {
         return -1;
     }
+
+    friend std::ostream& operator<<(std::ostream&, const BetaGeometric&);
 };
+
+
+std::ostream& operator<<(std::ostream& os, const BetaGeometric& m) {
+    return os << "Geometric(N=" << m.N << ", L=" << m.L << ")"
+        <<" ~ Beta(" << m.alpha << ", " << m.beta << ")";
+}
 
 
 namespace prob {
