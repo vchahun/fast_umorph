@@ -59,7 +59,7 @@ struct BetaGeometric {
         N++;
     }
 
-    void Decrement(unsigned l ){
+    void Decrement(unsigned l){
         L -= l;
         N--;
     }

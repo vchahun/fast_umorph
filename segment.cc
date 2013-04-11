@@ -64,13 +64,13 @@ int main(int argc, char** argv) {
                 if(it > 0) segs[wid] = seg;
                 else segs.push_back(seg);
                 wid++;
-                if(wid % 100 == 0) std::cerr << ".";
+                //if(wid % 100 == 0) std::cerr << ".";
             }
         }
-        std::cerr << "\n";
-        std::cerr << model << "\n";
-        if(it % 10 == 9) {
+        //std::cerr << "\n";
+        if(it % 10 == 0) {
             std::cerr << "Iteration " << (it+1) << "/" << n_iterations << "\n";
+            std::cerr << model << "\n";
             double ll = model.LogLikelihood();
             double ppl = exp(-ll/corpus.Tokens());
             std::cerr << "LL=" << ll << " ppl=" << ppl << "\n";

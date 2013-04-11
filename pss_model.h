@@ -54,11 +54,7 @@ class SegmentationModel {
     const Segmentation Increment(unsigned w,
             std::mt19937& engine, bool initialize=false) {
         const std::string& word = word_vocabulary.Convert(w);
-        //fst::LogVectorFst lattice = MakeLattice<fst::LogArc>(tries[w], word);
-        fst::StdVectorFst std_lattice = MakeLattice<fst::StdArc>(tries[w], word);
-        fst::LogVectorFst log_lattice;
-        fst::WeightConvertMapper<fst::StdArc, fst::LogArc> mapper;
-        fst::ArcMap(std_lattice, &log_lattice, mapper);
+        fst::LogVectorFst log_lattice = MakeLattice<fst::LogArc>(tries[w], word);
         fst::LogVectorFst sampled;
         int seed = prob::randint(engine, -INT_MAX, INT_MAX);
         if(initialize) {
@@ -120,13 +116,15 @@ class SegmentationModel {
         const fst::VectorFst<Arc> grammar = BuildGrammar<Arc>(trie, 
                 prefix_model, stem_model, suffix_model,
                 prefix_length_model, suffix_length_model);
+        //grammar.Write("grammar.fst");
 
         const fst::VectorFst<Arc> word_fst = LinearChain<Arc>(word);
+        //word_fst.Write("chain.fst");
 
         fst::VectorFst<Arc> lattice;
         fst::Compose(word_fst, grammar, &lattice);
         fst::RmEpsilon(&lattice);
-        fst::Project(&lattice, fst::PROJECT_OUTPUT);
+        //lattice.Write("lattice.fst");
 
         return lattice;
     }

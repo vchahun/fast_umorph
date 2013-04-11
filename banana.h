@@ -2,6 +2,8 @@ namespace fst {
 typedef VectorFst<LogArc> LogVectorFst;
 }
 
+// Add arcs corresponding to 'trie' between 'start' and 'end' nodes
+// For each trie leaf, add the corresponding weight in 'model'
 template <typename Arc>
 void BuildBanana(const Trie& trie, int start, int end,
         fst::VectorFst<Arc> &grammar, const DirichletMultinomial& model) {
@@ -36,16 +38,20 @@ const fst::VectorFst<Arc> BuildGrammar(const Trie& trie,
     const float prefix_stop = -log(prefix_length_model.Stop());
     const int prefix_start = grammar.AddState();
     grammar.SetStart(prefix_start);
-    const int prefix_end = grammar.AddState();
-    const int prefix_m = grammar.AddState();
-    grammar.AddArc(prefix_end, Arc(0, mb, prefix_loop, prefix_m)); // morpheme penalty
-    grammar.AddArc(prefix_m, Arc(0, 0, 0, prefix_start)); // closure
-    grammar.AddArc(prefix_start, Arc(0, 0, 0, prefix_m)); // closure
-    BuildBanana(trie, prefix_start, prefix_end, grammar, prefix_model);
+    const int prefix1 = grammar.AddState(); // start -> 1 (closure)
+    grammar.AddArc(prefix_start, Arc(0, 0, 0, prefix1));
+    const int prefix2 = grammar.AddState(); // 1 -> substrings -> 2
+    BuildBanana(trie, prefix1, prefix2, grammar, prefix_model);
+    const int prefix3 = grammar.AddState(); // 2 -> 3 / p; 3 -> 1 (closure)
+    grammar.AddArc(prefix2, Arc(0, mb, prefix_loop, prefix3)); // morpheme penalty
+    grammar.AddArc(prefix3, Arc(0, 0, 0, prefix1)); // closure
+    const int prefix_end = grammar.AddState(); // start, 3 -> end (closure)
+    grammar.AddArc(prefix_start, Arc(0, 0, 0, prefix_end)); // closure
+    grammar.AddArc(prefix3, Arc(0, 0, 0, prefix_end)); // closure
 
     // Stem
     const int stem_start = grammar.AddState();
-    grammar.AddArc(prefix_m, Arc(0, ss, prefix_stop, stem_start)); // start stem
+    grammar.AddArc(prefix_end, Arc(0, ss, prefix_stop, stem_start)); // prefix -> suffix
     const int stem_end = grammar.AddState();
     BuildBanana(trie, stem_start, stem_end, grammar, stem_model);
 
@@ -53,16 +59,18 @@ const fst::VectorFst<Arc> BuildGrammar(const Trie& trie,
     const float suffix_loop = -log(1 - suffix_length_model.Stop());
     const float suffix_stop = -log(suffix_length_model.Stop());
     const int suffix_start = grammar.AddState();
-    grammar.AddArc(stem_end, Arc(0, se, 0, suffix_start)); // end stem
-    const int suffix_end = grammar.AddState();
-    const int suffix_m = grammar.AddState();
-    grammar.AddArc(suffix_end, Arc(0, mb, suffix_loop, suffix_m)); // morpheme penalty
-    grammar.AddArc(suffix_m, Arc(0, 0, 0, suffix_start)); // closure
-    grammar.AddArc(suffix_start, Arc(0, 0, 0, suffix_m)); // closure
-    BuildBanana(trie, suffix_start, suffix_end, grammar, suffix_model);
-    const int final = grammar.AddState();
-    grammar.AddArc(suffix_m, Arc(0, 0, suffix_stop, final)); // end word
-    grammar.SetFinal(final, 0);
+    grammar.AddArc(stem_end, Arc(0, se, 0, suffix_start)); // stem -> suffix
+    const int suffix1 = grammar.AddState(); // start -> 1 (closure)
+    grammar.AddArc(suffix_start, Arc(0, 0, 0, suffix1));
+    const int suffix2 = grammar.AddState(); // 1 -> substrings -> 2
+    BuildBanana(trie, suffix1, suffix2, grammar, suffix_model);
+    const int suffix3 = grammar.AddState(); // 2 -> 3 / p; 3 -> 1 (closure)
+    grammar.AddArc(suffix2, Arc(0, mb, suffix_loop, suffix3)); // morpheme penalty
+    grammar.AddArc(suffix3, Arc(0, 0, 0, suffix1)); // closure
+    const int suffix_end = grammar.AddState(); // start, 3 -> end (closure)
+    grammar.AddArc(suffix_start, Arc(0, 0, 0, suffix_end)); // closure
+    grammar.AddArc(suffix3, Arc(0, 0, 0, suffix_end)); // closure
+    grammar.SetFinal(suffix_end, suffix_stop);
 
     return grammar;
 }
