@@ -18,11 +18,12 @@ const std::string FormatSegmentation(const Segmentation& seg,
 }
 
 int main(int argc, char** argv) {
-    assert(argc == 2);
+    assert(argc == 5);
 
-    const float alpha_prefix = 0.001;
-    const float alpha_stem = 0.001;
-    const float alpha_suffix = 0.001;
+    const unsigned n_iterations = atoi(argv[1]);
+    const float alpha_prefix = atof(argv[2]);
+    const float alpha_stem = atof(argv[3]);
+    const float alpha_suffix = atof(argv[4]);
 
     Vocabulary word_vocabulary;
     Vocabulary substring_vocabulary;
@@ -51,8 +52,6 @@ int main(int argc, char** argv) {
 
     std::random_device rd;
     std::mt19937 engine(rd());
-
-    const unsigned n_iterations = atoi(argv[1]);
 
     std::vector<Segmentation> segs;
     for(unsigned it = 0; it < n_iterations; it++) {

@@ -44,43 +44,17 @@ class SegmentationModel {
             const Vocabulary& word_vocabulary, unsigned n_substrings,
             const std::vector<Trie>& tries) :
         word_vocabulary(word_vocabulary),
-        tries(tries),
+        tries(tries), chains(),
         prefix_model(n_substrings, alpha_prefix),
         stem_model(n_substrings, alpha_stem),
         suffix_model(n_substrings, alpha_suffix),
         prefix_length_model(1, 1),
-        suffix_length_model(1, 1) {}
-
-    const Segmentation Increment(unsigned w,
-            std::mt19937& engine, bool initialize=false) {
-        const std::string& word = word_vocabulary.Convert(w);
-        fst::LogVectorFst log_lattice = MakeLattice<fst::LogArc>(tries[w], word);
-        fst::LogVectorFst sampled;
-        int seed = prob::randint(engine, -INT_MAX, INT_MAX);
-        if(initialize) {
-            fst::UniformArcSelector<fst::LogArc> selector(seed);
-            fst::RandGenOptions< fst::UniformArcSelector<fst::LogArc> > options(selector);
-            fst::RandGen(log_lattice, &sampled);
-        }
-        else {
-            std::vector<fst::LogWeight> beta;
-            fst::ShortestDistance<fst::LogArc>(log_lattice, &beta, true);
-            fst::Reweight<fst::LogArc>(&log_lattice, beta, fst::REWEIGHT_TO_INITIAL);
-            fst::LogProbArcSelector<fst::LogArc> selector(seed);
-            fst::RandGenOptions< fst::LogProbArcSelector<fst::LogArc> > options(selector);
-            fst::RandGen(log_lattice, &sampled, options);
+        suffix_length_model(1, 1) {
+            for(const auto& word: word_vocabulary)
+                chains.push_back(LinearChain<fst::LogArc>(word));
         }
 
-        const Segmentation seg = ReadSegmentation(sampled, tries[w]);
-        for(unsigned p: seg.prefixes)
-            prefix_model.Increment(p);
-        prefix_length_model.Increment(seg.prefixes.size());
-        stem_model.Increment(seg.stem);
-        for(unsigned s: seg.suffixes)
-            suffix_model.Increment(s);
-        suffix_length_model.Increment(seg.suffixes.size());
-        return seg;
-    }
+    const Segmentation Increment(unsigned w, std::mt19937& engine, bool initialize=false);
 
     void Decrement(unsigned w, const Segmentation& seg) {
         const std::string& word = word_vocabulary.Convert(w);
@@ -94,8 +68,7 @@ class SegmentationModel {
     }
 
     const Segmentation Decode(unsigned w) const {
-        const std::string& word = word_vocabulary.Convert(w);
-        const fst::StdVectorFst lattice = MakeLattice<fst::StdArc>(tries[w], word);
+        const fst::StdVectorFst lattice = MakeLattice<fst::StdArc>(w);
         fst::StdVectorFst best;
         fst::ShortestPath(lattice, &best);
         fst::TopSort(&best);
@@ -104,38 +77,81 @@ class SegmentationModel {
     }
 
     double LogLikelihood() const {
-        return prefix_model.LogLikelihood()
+        return prefix_model.LogLikelihood() + prefix_length_model.LogLikelihood()
             + stem_model.LogLikelihood()
-            + suffix_model.LogLikelihood();
-        // TODO + length likelhood
+            + suffix_model.LogLikelihood() + suffix_model.LogLikelihood();
     }
+
+    DirichletMultinomial prefix_model, stem_model, suffix_model;
+    BetaGeometric prefix_length_model, suffix_length_model;
 
     private:
     template <typename Arc>
-    fst::VectorFst<Arc> MakeLattice(const Trie& trie, const std::string& word) const {
-        const fst::VectorFst<Arc> grammar = BuildGrammar<Arc>(trie, 
+    inline fst::VectorFst<Arc> MakeLattice(unsigned w) const {
+        const fst::VectorFst<Arc> grammar = BuildGrammar<Arc>(tries[w], 
                 prefix_model, stem_model, suffix_model,
                 prefix_length_model, suffix_length_model);
-        //grammar.Write("grammar.fst");
 
-        const fst::VectorFst<Arc> word_fst = LinearChain<Arc>(word);
-        //word_fst.Write("chain.fst");
+        const fst::VectorFst<Arc>& word_fst = LinearChain<Arc>(word_vocabulary.Convert(w));
 
         fst::VectorFst<Arc> lattice;
         fst::Compose(word_fst, grammar, &lattice);
         fst::RmEpsilon(&lattice);
-        //lattice.Write("lattice.fst");
 
         return lattice;
     }
 
     const Vocabulary& word_vocabulary;
     const std::vector<Trie>& tries;
-    DirichletMultinomial prefix_model, stem_model, suffix_model;
-    BetaGeometric prefix_length_model, suffix_length_model;
+    std::vector< fst::VectorFst<fst::LogArc> > chains;
 
     friend std::ostream& operator<<(std::ostream&, const SegmentationModel&);
 };
+
+template <>
+fst::VectorFst<fst::LogArc> SegmentationModel::MakeLattice(unsigned w) const {
+    const fst::VectorFst<fst::LogArc> grammar = BuildGrammar<fst::LogArc>(tries[w], 
+            prefix_model, stem_model, suffix_model,
+            prefix_length_model, suffix_length_model);
+
+    const fst::VectorFst<fst::LogArc>& word_fst = chains[w];
+
+    fst::VectorFst<fst::LogArc> lattice;
+    fst::Compose(word_fst, grammar, &lattice);
+    fst::RmEpsilon(&lattice);
+
+    return lattice;
+}
+
+const Segmentation SegmentationModel::Increment(unsigned w,
+        std::mt19937& engine, bool initialize) {
+    fst::LogVectorFst log_lattice = MakeLattice<fst::LogArc>(w);
+    fst::LogVectorFst sampled;
+    int seed = prob::randint(engine, -INT_MAX, INT_MAX);
+    if(initialize) {
+        fst::UniformArcSelector<fst::LogArc> selector(seed);
+        fst::RandGenOptions< fst::UniformArcSelector<fst::LogArc> > options(selector);
+        fst::RandGen(log_lattice, &sampled);
+    }
+    else {
+        std::vector<fst::LogWeight> beta;
+        fst::ShortestDistance<fst::LogArc>(log_lattice, &beta, true);
+        fst::Reweight<fst::LogArc>(&log_lattice, beta, fst::REWEIGHT_TO_INITIAL);
+        fst::LogProbArcSelector<fst::LogArc> selector(seed);
+        fst::RandGenOptions< fst::LogProbArcSelector<fst::LogArc> > options(selector);
+        fst::RandGen(log_lattice, &sampled, options);
+    }
+
+    const Segmentation seg = ReadSegmentation(sampled, tries[w]);
+    for(unsigned p: seg.prefixes)
+        prefix_model.Increment(p);
+    prefix_length_model.Increment(seg.prefixes.size());
+    stem_model.Increment(seg.stem);
+    for(unsigned s: seg.suffixes)
+        suffix_model.Increment(s);
+    suffix_length_model.Increment(seg.suffixes.size());
+    return seg;
+}
 
 
 std::ostream& operator<<(std::ostream& os, const SegmentationModel& m) {
