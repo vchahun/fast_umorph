@@ -2,6 +2,7 @@
 #include <vector>
 #include <random>
 #include <cmath>
+#include <mutex>
 
 struct DirichletMultinomial {
     DirichletMultinomial(unsigned size, float concentration)
@@ -9,12 +10,14 @@ struct DirichletMultinomial {
 
     void Increment(unsigned k) {
         assert(k < K);
+        std::lock_guard<std::mutex> guard(count_lock);
         count[k]++;
         N++;
     }
 
     void Decrement(unsigned k) {
         assert(k < K);
+        std::lock_guard<std::mutex> guard(count_lock);
         count[k]--;
         N--;
     }
@@ -35,6 +38,7 @@ struct DirichletMultinomial {
     float alpha;
     unsigned N;
     std::vector<unsigned> count;
+    std::mutex count_lock;
 
     friend std::ostream& operator<<(std::ostream&, const DirichletMultinomial&);
 };

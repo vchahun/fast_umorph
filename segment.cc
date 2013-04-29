@@ -1,4 +1,5 @@
 #include <fst/fstlib.h>
+#include <thread>
 #include "vocabulary.h"
 #include "corpus.h"
 #include "prob.h"
@@ -29,7 +30,8 @@ int main(int argc, char** argv) {
     Vocabulary substring_vocabulary;
 
     Corpus corpus(std::cin, word_vocabulary);
-    std::cerr << "Read " << corpus.Size() << " tokens, "
+    std::cerr << "Read " << corpus.Size() << " sentences, "
+        << corpus.Tokens() << " tokens,"
         << word_vocabulary.Size() << " types\n";
 
 
@@ -54,17 +56,33 @@ int main(int argc, char** argv) {
     std::mt19937 engine(rd());
 
     std::vector<Segmentation> segs;
+
+    unsigned wid = 0;
+    for(auto& sentence: corpus) {
+        for(auto& word: sentence) {
+            const Segmentation seg = model.Increment(word, engine, true);
+            segs.push_back(seg);
+            wid++;
+        }
+    }
+
+    std::cerr << "Initialization done \n";
+
+    std::vector<std::thread> threads;
     for(unsigned it = 0; it < n_iterations; it++) {
-        unsigned wid = 0;
+        wid = 0;
         for(auto& sentence: corpus) {
-            for(auto& word: sentence) {
-                if(it > 0) model.Decrement(word, segs[wid]);
-                const Segmentation seg = model.Increment(word, engine, (it==0));
-                if(it > 0) segs[wid] = seg;
-                else segs.push_back(seg);
+            for(unsigned word: sentence) {
+                threads.push_back(std::thread([&model, &engine, &segs](unsigned wid, unsigned word) {
+                model.Decrement(word, segs[wid]);
+                const Segmentation seg = model.Increment(word, engine, false);
+                segs[wid] = seg;
+                }, wid, word));
                 wid++;
-                //if(wid % 100 == 0) std::cerr << ".";
             }
+            for(auto& thread : threads)
+                thread.join();
+            threads.resize(0);
         }
         //std::cerr << "\n";
         if(it % 10 == 0) {
