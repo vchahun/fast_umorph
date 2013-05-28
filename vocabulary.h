@@ -11,6 +11,7 @@ class Vocabulary {
     public:
     Vocabulary() : word2id(), id2word() {}
 
+    // Convert string to id (creating a new id if necessary)
     unsigned Encode(const std::string& word) {
         std::unordered_map<std::string, unsigned>::const_iterator it = word2id.find(word);
         if(it != word2id.end())
@@ -20,10 +21,12 @@ class Vocabulary {
         return id2word.size()-1;
     }
 
+    // Convert string to existing id
     unsigned Convert(const std::string& word) const {
         return word2id.at(word);
     }
 
+    // Convert id to string
     const std::string& Convert(unsigned k) const {
         assert(k < id2word.size());
         return id2word[k];

@@ -40,4 +40,3 @@ class Corpus {
         return segments.end(); 
     }
 };
-

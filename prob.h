@@ -3,6 +3,9 @@
 #include <random>
 #include <cmath>
 #include <mutex>
+#include <iostream>
+
+/* A thread-safe Multinomial distribution with a Dirichlet prior */
 
 struct DirichletMultinomial {
     DirichletMultinomial(unsigned size, float concentration)
@@ -52,6 +55,8 @@ std::ostream& operator<<(std::ostream& os, const DirichletMultinomial& m) {
         << " ~ Dir(K=" << m.K << ", alpha=" << m.alpha << ")";
 }
 
+/* A Geometric distribution with a Beta prior */
+
 struct BetaGeometric {
     unsigned L, N;
     float alpha, beta;
@@ -93,6 +98,8 @@ std::ostream& operator<<(std::ostream& os, const BetaGeometric& m) {
         <<" ~ Beta(" << m.alpha << ", " << m.beta << ")";
 }
 
+
+/* Utility functions for generating random numbers */
 
 namespace prob {
 

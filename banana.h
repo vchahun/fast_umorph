@@ -2,8 +2,8 @@ namespace fst {
 typedef VectorFst<LogArc> LogVectorFst;
 }
 
-// Add arcs corresponding to 'trie' between 'start' and 'end' nodes
-// For each trie leaf, add the corresponding weight in 'model'
+/* Add arcs corresponding to `trie` between `start` and `end` nodes
+ * For each trie leaf, add the corresponding weight in `model` */
 template <typename Arc>
 void BuildBanana(const Trie& trie, int start, int end,
         fst::VectorFst<Arc> &grammar, const DirichletMultinomial& model) {
@@ -20,10 +20,24 @@ void BuildBanana(const Trie& trie, int start, int end,
     }
 }
 
-const int mb = (unsigned char)'^';
-const int ss = (unsigned char)'<';
-const int se = (unsigned char)'>';
+/* Special characters used for marking morpheme boundaries */
+const int mb = (unsigned char)'^'; // morpheme boundary
+const int ss = (unsigned char)'<'; // stem start
+const int se = (unsigned char)'>'; // stem end
 
+void CheckChars(const string& word) {
+    for(char c: word){ 
+        if(c == mb || c == ss || c == se) {
+            std::cerr << "Invalid character ("
+                << (char) mb <<  (char) ss << (char) se << ") "
+                << "in word `" << word << "`\n";
+            exit(1);
+        }   
+    }
+}
+
+/* Create a weighted grammar M*MM* from the trie M
+ * containing all possible substrings for a word */
 template <typename Arc>
 const fst::VectorFst<Arc> BuildGrammar(const Trie& trie,
         const DirichletMultinomial& prefix_model,
@@ -75,6 +89,7 @@ const fst::VectorFst<Arc> BuildGrammar(const Trie& trie,
     return grammar;
 }
 
+/* Create linear chain character acceptor for `word` */
 template <typename Arc>
 const fst::VectorFst<Arc> LinearChain(const std::string& word) {
     fst::VectorFst<Arc> chain;

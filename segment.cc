@@ -1,5 +1,6 @@
 #include <fst/fstlib.h>
 #include <thread>
+#include "thread_pool.h"
 #include "vocabulary.h"
 #include "corpus.h"
 #include "prob.h"
@@ -7,19 +8,28 @@
 #include "banana.h"
 #include "pss_model.h"
 
+const unsigned NTHREADS = 8;
+
 const std::string FormatSegmentation(const Segmentation& seg,
-        const Vocabulary& substring_vocabulary) {
+        const Vocabulary& substring_vocabulary,
+        const string morpheme_separator = "^",
+        const string prefix_separator = "<",
+        const string suffix_separator = ">") {
     std::string res;
     for(unsigned p: seg.prefixes)
-        res += substring_vocabulary.Convert(p) + "^";
-    res += "<" + substring_vocabulary.Convert(seg.stem) + ">";
+        res += substring_vocabulary.Convert(p) + morpheme_separator;
+    res += prefix_separator + substring_vocabulary.Convert(seg.stem) + suffix_separator;
     for(unsigned s: seg.suffixes)
-        res += "^" + substring_vocabulary.Convert(s);
+        res += morpheme_separator + substring_vocabulary.Convert(s);
     return res;
 }
 
 int main(int argc, char** argv) {
-    assert(argc == 5);
+    if(argc != 5) {
+        std::cerr << "Usage: "
+            << argv[0] << " n_iter alpha_prefix alpha_stem alpha_suffix\n";
+        exit(1);
+    }
 
     const unsigned n_iterations = atoi(argv[1]);
     const float alpha_prefix = atof(argv[2]);
@@ -29,14 +39,17 @@ int main(int argc, char** argv) {
     Vocabulary word_vocabulary;
     Vocabulary substring_vocabulary;
 
+    /* Read vocabulary from standard input */
     Corpus corpus(std::cin, word_vocabulary);
     std::cerr << "Read " << corpus.Size() << " sentences, "
-        << corpus.Tokens() << " tokens,"
+        << corpus.Tokens() << " tokens, "
         << word_vocabulary.Size() << " types\n";
 
-
+    /* Create substring tries which are used as a based to build
+     * segmentation lattices */
     std::vector<Trie> tries;
     for(const std::string& word: word_vocabulary) {
+        CheckChars(word);
         Trie trie;
         for(unsigned i = 0; i <= word.size(); i++) {
             for(unsigned j = 1; i + j <= word.size(); j++) {
@@ -49,6 +62,7 @@ int main(int argc, char** argv) {
 
     std::cerr << "Found " << substring_vocabulary.Size() << " substrings\n";
 
+    /* Initialize segmentation model */
     SegmentationModel model(alpha_prefix, alpha_stem, alpha_suffix,
            word_vocabulary, substring_vocabulary.Size(), tries);
 
@@ -57,6 +71,7 @@ int main(int argc, char** argv) {
 
     std::vector<Segmentation> segs;
 
+    /* Obtain initial random segmentations */
     unsigned wid = 0;
     for(auto& sentence: corpus) {
         for(auto& word: sentence) {
@@ -66,25 +81,24 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::cerr << "Initialization done \n";
+    std::cerr << "Initialization done \n"
+        << "Running parallel Gibbs sampler with " << NTHREADS << " threads\n";
 
-    std::vector<std::thread> threads;
+    /* Run Gibbs sampler */
     for(unsigned it = 0; it < n_iterations; it++) {
         wid = 0;
+        ThreadPool pool(NTHREADS);
         for(auto& sentence: corpus) {
-            for(unsigned word: sentence) {
-                threads.push_back(std::thread([&model, &engine, &segs](unsigned wid, unsigned word) {
+            for(auto word: sentence) {
+                pool.enqueue([&model, &engine, &segs, wid, word] {
                 model.Decrement(word, segs[wid]);
-                const Segmentation seg = model.Increment(word, engine, false);
-                segs[wid] = seg;
-                }, wid, word));
+                segs[wid] = model.Increment(word, engine, false);
+                });
                 wid++;
             }
-            for(auto& thread : threads)
-                thread.join();
-            threads.resize(0);
         }
-        //std::cerr << "\n";
+        pool.join();
+
         if(it % 10 == 0) {
             std::cerr << "Iteration " << (it+1) << "/" << n_iterations << "\n";
             std::cerr << model << "\n";
@@ -94,6 +108,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    /* Print final segmentations decoded with Viterbi algorithm */
     for(unsigned w = 0; w < word_vocabulary.Size(); w++) {
         const std::string& word = word_vocabulary.Convert(w);
         const Segmentation seg = model.Decode(w);

@@ -4,36 +4,36 @@ struct Segmentation {
 };
 
 
+/* Decode a segmentation from the linear chain character acceptor `path`
+ * using `trie` to map character sequences to substrings */
 template <typename Arc>
-const Segmentation ReadSegmentation(const fst::ExpandedFst<Arc>& path, const Trie& trie) {
+const Segmentation ReadSegmentation(const fst::ExpandedFst<Arc>& path,
+        const Trie& trie) {
     vector<unsigned> prefixes, suffixes;
     unsigned stem = -1;
     unsigned part = 0;
     const Trie* node = &trie;
-    for(fst::StateIterator<fst::ExpandedFst<Arc>> siter(path); !siter.Done(); siter.Next()) {
+    for(fst::StateIterator<fst::ExpandedFst<Arc>> siter(path);
+            !siter.Done(); siter.Next()) {
         typename fst::ExpandedFst<Arc>::StateId state_id = siter.Value();
         for(fst::ArcIterator<fst::ExpandedFst<Arc>> aiter(path, state_id);
                 !aiter.Done(); aiter.Next()) {
             const Arc &arc = aiter.Value();
-            if(arc.olabel == '^') {
+            if(arc.olabel == '^') { // end of prefix/suffix morpheme
                 (part == 0 ? prefixes : suffixes).push_back(node->label);
-                //std::cerr << "^" << node->label << "^";
                 node = &trie;
             }
-            else if(arc.olabel == '<') {
-                //std::cerr << "<";
+            else if(arc.olabel == '<') { // prefix -> stem
                 part++;
             }
-            else if(arc.olabel == '>') {
+            else if(arc.olabel == '>') { // stem -> suffix
                 stem = node->label;
-                //std::cerr << node->label << ">";
                 node = &trie;
                 part++;
             }
-            else node = &node->nodes.at(arc.olabel);
+            else node = &node->nodes.at(arc.olabel); // read morpheme character
         }
     }
-    //std::cerr << "\n";
     assert(stem != -1);
     return Segmentation {prefixes, suffixes, stem};
 }
@@ -50,6 +50,7 @@ class SegmentationModel {
         suffix_model(n_substrings, alpha_suffix),
         prefix_length_model(1, 1),
         suffix_length_model(1, 1) {
+            // Pre-compute linear chain character log-acceptor for each word
             for(const auto& word: word_vocabulary)
                 chains.push_back(LinearChain<fst::LogArc>(word));
         }
@@ -67,6 +68,7 @@ class SegmentationModel {
         suffix_length_model.Decrement(seg.suffixes.size());
     }
 
+    /* Obtain most likely segmentation of word `w` using Viterbi algorithm */
     const Segmentation Decode(unsigned w) const {
         const fst::StdVectorFst lattice = MakeLattice<fst::StdArc>(w);
         fst::StdVectorFst best;
@@ -76,6 +78,7 @@ class SegmentationModel {
         return seg;
     }
 
+    /* Full log-likelihood of the model */
     double LogLikelihood() const {
         return prefix_model.LogLikelihood() + prefix_length_model.LogLikelihood()
             + stem_model.LogLikelihood()
@@ -86,6 +89,7 @@ class SegmentationModel {
     BetaGeometric prefix_length_model, suffix_length_model;
 
     private:
+    /* Create a lattice of a given type for word `w` */
     template <typename Arc>
     inline fst::VectorFst<Arc> MakeLattice(unsigned w) const {
         const fst::VectorFst<Arc> grammar = BuildGrammar<Arc>(tries[w], 
@@ -108,6 +112,7 @@ class SegmentationModel {
     friend std::ostream& operator<<(std::ostream&, const SegmentationModel&);
 };
 
+/* Specialization for log-lattices which use pre-computed word linear chains */
 template <>
 fst::VectorFst<fst::LogArc> SegmentationModel::MakeLattice(unsigned w) const {
     const fst::VectorFst<fst::LogArc> grammar = BuildGrammar<fst::LogArc>(tries[w], 
@@ -129,11 +134,13 @@ const Segmentation SegmentationModel::Increment(unsigned w,
     fst::LogVectorFst sampled;
     int seed = prob::randint(engine, -INT_MAX, INT_MAX);
     if(initialize) {
+        // Uniform initialization
         fst::UniformArcSelector<fst::LogArc> selector(seed);
         fst::RandGenOptions< fst::UniformArcSelector<fst::LogArc> > options(selector);
         fst::RandGen(log_lattice, &sampled);
     }
     else {
+        // Sample from distribution defined by lattice
         std::vector<fst::LogWeight> beta;
         fst::ShortestDistance<fst::LogArc>(log_lattice, &beta, true);
         fst::Reweight<fst::LogArc>(&log_lattice, beta, fst::REWEIGHT_TO_INITIAL);
@@ -142,6 +149,7 @@ const Segmentation SegmentationModel::Increment(unsigned w,
         fst::RandGen(log_lattice, &sampled, options);
     }
 
+    // Increment corresponding model variables
     const Segmentation seg = ReadSegmentation(sampled, tries[w]);
     for(unsigned p: seg.prefixes)
         prefix_model.Increment(p);
