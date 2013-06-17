@@ -34,12 +34,12 @@ Execute `make` to compile the `segment` binary.
 
 Create a tokenized corpus or a vocabulary file and pipe it into the program:
 
-    cat words.txt | ./segment 1000 1e-5 1e-6 1e-5 > words.segs.txt
+    cat words.txt | ./segment 1000 1e-5 1e-4 1e-5 > words.segs.txt
 
 The corpus has to be encoded in a **8-bit format** (e.g. ISO-8859-1 for French, ISO-8859-5 for Russian, ISO-8859-6 for Arabic...), due to my unforgivable laziness to properly treat unicode strings. You might want to run a pipeline similar to:
 
     cat french-words.txt | iconv -f utf8 -t latin1 |\
-        ./segment 1000 1e-5 1e-6 1e-5 |\
+        ./segment 1000 1e-5 1e-4 1e-5 |\
         iconv -f latin1 -t utf8 > french-words.segs.txt
 
 Also, the characters `^<>` are currently reserved as special morpheme boundary markers but this can easily be changed in the code.
